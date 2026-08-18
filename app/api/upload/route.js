@@ -15,6 +15,7 @@ export async function POST(request) {
     const blob = await put(file.name, file, {
       access: "public",
       addRandomSuffix: true,
+      storeId: process.env.BLOB2_STORE_ID,
     });
 
     return Response.json({
