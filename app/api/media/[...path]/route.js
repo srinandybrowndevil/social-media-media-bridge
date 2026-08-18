@@ -1,3 +1,5 @@
+import { get } from "@vercel/blob";
+
 export async function GET(request, { params }) {
   try {
     const { path } = await params;
@@ -6,36 +8,32 @@ export async function GET(request, { params }) {
       return new Response("Missing media path", { status: 400 });
     }
 
-    const blobUrl = `https://ddtbpf3zxngd1yj3.public.blob.vercel-storage.com/${path
-      .map(encodeURIComponent)
-      .join("/")}`;
+    const pathname = path.join("/");
 
-    const response = await fetch(blobUrl, {
-      cache: "no-store",
+    const result = await get(pathname, {
+      access: "public",
+      token: process.env.BLOB2_READ_WRITE_TOKEN,
     });
 
-    if (!response.ok) {
-      return new Response("Media not found", {
-        status: response.status,
-      });
+    if (!result || !result.stream) {
+      return new Response("Media not found", { status: 404 });
     }
 
-    const contentType =
-      response.headers.get("content-type") || "application/octet-stream";
-
-    return new Response(response.body, {
-      status: 200,
+    return new Response(result.stream, {
+      status: result.statusCode || 200,
       headers: {
-        "Content-Type": contentType,
-        "Cache-Control": "public, max-age=31536000, immutable",
+        "Content-Type":
+          result.contentType || "application/octet-stream",
         "Content-Disposition": "inline",
+        "Cache-Control":
+          "public, max-age=31536000, immutable",
       },
     });
   } catch (error) {
     console.error("Media proxy error:", error);
 
-    return new Response("Media proxy failed", {
-      status: 500,
+    return new Response("Media unavailable", {
+      status: 404,
     });
   }
 }
