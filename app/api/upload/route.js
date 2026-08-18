@@ -1,37 +1,36 @@
-import { put } from "@vercel/blob";
+import { get } from "@vercel/blob";
 
-export async function POST(request) {
+export async function GET(request, { params }) {
   try {
-    const formData = await request.formData();
-    const file = formData.get("file");
+    const { path } = await params;
 
-    if (!file) {
-      return Response.json(
-        { error: "No file provided" },
-        { status: 400 }
-      );
+    if (!path || path.length === 0) {
+      return new Response("Missing media path", { status: 400 });
     }
 
-    const blob = await put(file.name, file, {
+    const pathname = path.join("/");
+
+    const result = await get(pathname, {
       access: "public",
-      addRandomSuffix: true,
       token: process.env.BLOB2_READ_WRITE_TOKEN,
     });
 
-    return Response.json({
-      success: true,
-      url: blob.url,
-      pathname: blob.pathname,
+    if (!result || !result.stream) {
+      return new Response("Media not found", { status: 404 });
+    }
+
+    return new Response(result.stream, {
+      status: result.statusCode || 200,
+      headers: {
+        "Content-Type": result.contentType || "application/octet-stream",
+        "Cache-Control": "public, max-age=31536000, immutable",
+      },
     });
   } catch (error) {
-    console.error("Upload error:", error);
+    console.error("Media proxy error:", error);
 
-    return Response.json(
-      {
-        error: "Upload failed",
-        message: error.message,
-      },
-      { status: 500 }
-    );
+    return new Response("Media unavailable", {
+      status: 404,
+    });
   }
 }
