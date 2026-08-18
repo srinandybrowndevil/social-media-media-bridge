@@ -1,36 +1,39 @@
-import { get } from "@vercel/blob";
+import { put } from "@vercel/blob";
 
-export async function GET(request, { params }) {
+export async function POST(request) {
   try {
-    const { path } = await params;
+    const formData = await request.formData();
+    const file = formData.get("file");
 
-    if (!path || path.length === 0) {
-      return new Response("Missing media path", { status: 400 });
+    if (!file || typeof file.arrayBuffer !== "function") {
+      return Response.json(
+        { success: false, error: "No valid file provided" },
+        { status: 400 }
+      );
     }
 
-    const pathname = path.join("/");
-
-    const result = await get(pathname, {
+    const blob = await put(file.name, file, {
       access: "public",
+      addRandomSuffix: true,
       token: process.env.BLOB2_READ_WRITE_TOKEN,
     });
 
-    if (!result || !result.stream) {
-      return new Response("Media not found", { status: 404 });
-    }
-
-    return new Response(result.stream, {
-      status: result.statusCode || 200,
-      headers: {
-        "Content-Type": result.contentType || "application/octet-stream",
-        "Cache-Control": "public, max-age=31536000, immutable",
-      },
+    return Response.json({
+      success: true,
+      url: blob.url,
+      pathname: blob.pathname,
+      contentType: file.type || "application/octet-stream",
     });
   } catch (error) {
-    console.error("Media proxy error:", error);
+    console.error("Upload error:", error);
 
-    return new Response("Media unavailable", {
-      status: 404,
-    });
+    return Response.json(
+      {
+        success: false,
+        error: "Upload failed",
+        message: error?.message || "Unknown error",
+      },
+      { status: 500 }
+    );
   }
 }
